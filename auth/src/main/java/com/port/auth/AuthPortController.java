@@ -1,5 +1,7 @@
 package com.port.auth;
 
+import java.util.Optional;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,9 +24,12 @@ public class AuthPortController {
       return ResponseEntity.status(400).body("Bad request");
     }
     Storage st = new Storage();
-    User user = st.getUserWithEmail(req.getEmail());
-    if (user.getId() != -1) {
+    Optional<User> user = st.getUserWithEmail(req.getEmail());
+    if (!user.isEmpty()) {
       return ResponseEntity.status(418).body("Already exists");
+    }
+    if (!st.createNewUser(req.getEmail(), req.getPassword(), req.getName(), req.getSurname())) {
+      return ResponseEntity.status(500).body("Internal server error");
     }
     // TODO: do the logic
     NewUserRes res = new NewUserRes(200, "OK", "NOT_A_REAL_TOKEN", req.getName(), req.getSurname());
