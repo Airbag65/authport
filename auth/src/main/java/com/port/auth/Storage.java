@@ -5,10 +5,11 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.sql.Struct;
+import java.time.ZonedDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.port.auth.types.AuthKey;
 import com.port.auth.types.User;
 
 public class Storage {
@@ -52,17 +53,25 @@ public class Storage {
     }
 
     private boolean userLoggedIn(String userToken, String ipAddr) {
-        try{
+        try {
             String query = "SELECT * FROM auth_key WHERE user_token = '%s' AND ip_addr = '%s'";
             ResultSet rs = this.statement.executeQuery(String.format(query, userToken, ipAddr));
+            AuthKey authKey = null;
             while (rs.next()) {
-                // TODO: DO THE THING
+                System.out.println(rs);
+                authKey = new AuthKey(rs.getInt("id"), rs.getString("ip_addr"), rs.getString("user_token"),
+                        rs.getString("client_token"), rs.getInt("token_expiry_date"),
+                        rs.getString("client_identifier"));
+            }
+            if (authKey == null) {
+                return false;
             }
 
         } catch (SQLException e) {
             System.err.println(e);
+            return false;
         }
-        return false;
+        return true;
     }
 
     public class LoginResult {
@@ -88,19 +97,29 @@ public class Storage {
         if (user.isEmpty()) {
             return new LoginResult("", LoginStatus.FAILIURE);
         }
-        if(user.get().getAuthToken() == null || user.get().getAuthToken().equals("")){
-            System.out.println("generating new token");
-            userToken = UUID.randomUUID().toString();
+        if (user.get().getAuthToken() == null || user.get().getAuthToken().equals("")) {
+            userToken = UUID.randomUUID().toString() + UUID.randomUUID().toString();
         } else {
-            System.out.println("using existing token");
             firstTimeLogin = false;
             userToken = user.get().getAuthToken();
         }
         if (!firstTimeLogin && this.userLoggedIn(userToken, ipAddr)) {
             return new LoginResult("", LoginStatus.ALREADY_LOGGED_IN);
         }
-        String clientUuid = UUID.randomUUID().toString();
-        // TODO: return correct thing
-        return new LoginResult("", LoginStatus.SUCCESS);
+        String clientToken = UUID.randomUUID().toString() + UUID.randomUUID().toString();
+        long time = ZonedDateTime.now().plusMonths(1).toEpochSecond();
+        try {
+            String userQuery = "UPDATE user SET auth_token = '%s', logged_in_count = %d WHERE email = '%s'";
+            user.get().incrementLoggedInCount();
+            this.statement
+                    .execute(String.format(userQuery, userToken, user.get().getLoggedInCount(), user.get().getEmail()));
+            String authKeyQuery = "INSERT INTO auth_key(ip_addr, user_token, client_token, token_expiry_date, client_identifier) values('%s', '%s', '%s', "
+                    + time + ", '%s')";
+            this.statement.execute(String.format(authKeyQuery, ipAddr, userToken, clientToken, clientIdentifier));
+        } catch (SQLException e) {
+            System.err.println(e);
+            return new LoginResult("", LoginStatus.FAILIURE);
+        }
+        return new LoginResult(userToken + "+" + clientToken, LoginStatus.SUCCESS);
     }
 }
