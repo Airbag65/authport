@@ -17,6 +17,7 @@ import com.port.auth.types.NewUserReq;
 import com.port.auth.types.NewUserRes;
 import com.port.auth.types.SignOutReq;
 import com.port.auth.types.User;
+import com.port.auth.types.ValidateReq;
 
 @RestController
 public class AuthPortController {
@@ -102,4 +103,17 @@ public class AuthPortController {
         }
         return ResponseEntity.status(500).body("Internal server error");
     }
+
+    @PostMapping("/valid")
+    public ResponseEntity<String> validate(@RequestHeader("Content-Type") String contentType,
+            @RequestBody ValidateReq req) {
+        if (!contentType.equals("application/json")) {
+            return ResponseEntity.status(400).body("Bad request");
+        }
+        if (!this.st.validateUserToken(req.getAuthToken(), req.getEmail())) {
+            return ResponseEntity.status(401).body("Unauthorized");
+        }
+        return ResponseEntity.ok().body("OK");
+    }
+
 }

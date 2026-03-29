@@ -5,9 +5,11 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 import com.port.auth.types.AuthKey;
 import com.port.auth.types.User;
@@ -139,7 +141,8 @@ public class Storage {
                 updateUser = "UPDATE user SET auth_token = '', logged_in_count = 0 WHERE email = '%s'";
             } else {
                 System.out.println("Partial log out");
-                updateUser = "UPDATE user SET logged_in_count = " + user.get().getLoggedInCount() + " WHERE email = '%s'";
+                updateUser = "UPDATE user SET logged_in_count = " + user.get().getLoggedInCount()
+                        + " WHERE email = '%s'";
             }
             this.statement.execute(String.format(updateUser, email));
             this.statement.execute("COMMIT");
@@ -149,5 +152,40 @@ public class Storage {
             System.err.println(e);
             return false;
         }
+    }
+
+    public boolean validateUserToken(String auth_token, String email) {
+        String[] tokens = auth_token.split(Pattern.quote("+"));
+        Optional<User> user = this.getUserWithEmail(email);
+        if (!user.get().getAuthToken().equals(tokens[0])) {
+            return false;
+        }
+        AuthKey ak = null;
+        try {
+            String getClientToken = "SELECT * FROM auth_key WHERE user_token = '%s' AND client_token = '%s'";
+            ResultSet rs = this.statement.executeQuery(String.format(getClientToken, tokens[0], tokens[1]));
+            while (rs.next()) {
+                ak = new AuthKey(rs.getInt("id"), rs.getString("ip_addr"), rs.getString("user_token"),
+                        rs.getString("client_token"), rs.getInt("token_expiry_date"),
+                        rs.getString("client_identifier"));
+            }
+        } catch (SQLException e) {
+            System.err.println(e);
+            return false;
+        }
+        if (ak == null) {
+            return false;
+        }
+
+        if (!ak.getClientToken().equals(tokens[1])){
+            return false;
+        }
+        
+        long currentTime = Instant.now().getEpochSecond();
+        if (currentTime > ak.getTokenExpiryDate()) {
+            this.signOutUser(email, ak.getClientIdentifier(), ak.getIpAddr());
+            return false;
+        }
+        return true;
     }
 }

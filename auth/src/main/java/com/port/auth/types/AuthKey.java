@@ -5,10 +5,10 @@ public class AuthKey {
     private String ipAddr;
     private String userToken;
     private String clientToken;
-    private int tokenExpiryDate;
+    private long tokenExpiryDate;
     private String clientIdentifier;
 
-    public AuthKey(int id, String ip, String userToken, String clientToken, int expiry, String identifier) {
+    public AuthKey(int id, String ip, String userToken, String clientToken, long expiry, String identifier) {
         this.id = id;
         this.ipAddr = ip;
         this.userToken = userToken;
@@ -33,7 +33,7 @@ public class AuthKey {
         return this.clientToken;
     }
 
-    public int getTokenExpiryDate() {
+    public long getTokenExpiryDate() {
         return this.tokenExpiryDate;
     }
 
