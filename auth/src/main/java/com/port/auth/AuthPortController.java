@@ -121,7 +121,7 @@ public class AuthPortController {
         return ResponseEntity.ok().body(res.toJsonString());
     }
 
-    @GetMapping("health")
+    @GetMapping("/health")
     public ResponseEntity<String> health() {
         String response = "{\"status\": \"OK\"}";
         return ResponseEntity.ok().body(response);
