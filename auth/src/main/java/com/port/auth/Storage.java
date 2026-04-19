@@ -2,6 +2,7 @@ package com.port.auth;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -29,8 +30,9 @@ public class Storage {
 
     public Optional<User> getUserWithEmail(String email) {
         try {
-            String query = "SELECT * FROM user WHERE email = '%s'";
-            ResultSet rs = this.statement.executeQuery(String.format(query, email));
+            PreparedStatement stmt = this.connection.prepareStatement("SELECT * FROM user WHERE email = ?");
+            stmt.setString(1, email);
+            ResultSet rs = stmt.executeQuery();
             while (rs.next()) {
                 User user = new User(rs.getString("email"), rs.getString("password"), rs.getString("name"),
                         rs.getString("surname"), rs.getInt("id"), rs.getString("auth_token"),
@@ -46,8 +48,13 @@ public class Storage {
     public boolean createNewUser(String email, String password, String name, String surname) {
         try {
             this.statement.execute("BEGIN TRANSACTION");
-            String query = "INSERT INTO user(email, password, name, surname, logged_in_count) values('%s', '%s', '%s', '%s', 0)";
-            this.statement.executeUpdate(String.format(query, email, password, name, surname));
+            PreparedStatement stmt = this.connection.prepareStatement(
+                    "INSERT INTO user(email, password, name, surname, logged_in_count) values(?,?,?,?,0)");
+            stmt.setString(1, email);
+            stmt.setString(2, password);
+            stmt.setString(3, name);
+            stmt.setString(4, surname);
+            stmt.execute();
             this.statement.execute("COMMIT");
             return true;
         } catch (SQLException e) {
@@ -58,8 +65,12 @@ public class Storage {
 
     public boolean userIsLoggedIn(String userToken, String ipAddr, String clientIdentifier) {
         try {
-            String query = "SELECT * FROM auth_key WHERE user_token = '%s' AND ip_addr = '%s' AND client_identifier = '%s'";
-            ResultSet rs = this.statement.executeQuery(String.format(query, userToken, ipAddr, clientIdentifier));
+            PreparedStatement stmt = this.connection.prepareStatement(
+                    "SELECT * FROM auth_key WHERE user_token = ? AND ip_addr = ? AND client_identifier = ?");
+            stmt.setString(1, userToken);
+            stmt.setString(2, ipAddr);
+            stmt.setString(3, clientIdentifier);
+            ResultSet rs = stmt.executeQuery();
             AuthKey authKey = null;
             while (rs.next()) {
                 authKey = new AuthKey(rs.getInt("id"), rs.getString("ip_addr"), rs.getString("user_token"),
@@ -113,13 +124,21 @@ public class Storage {
         long time = ZonedDateTime.now().plusMonths(1).toEpochSecond();
         try {
             this.statement.execute("BEGIN TRANSACTION");
-            String userQuery = "UPDATE user SET auth_token = '%s', logged_in_count = %d WHERE email = '%s'";
+            PreparedStatement stmt = this.connection
+                    .prepareStatement("UPDATE user SET auth_token = ?, logged_in_count = ? WHERE email = ?");
             user.get().incrementLoggedInCount();
-            this.statement
-                    .execute(String.format(userQuery, userToken, user.get().getLoggedInCount(), user.get().getEmail()));
-            String authKeyQuery = "INSERT INTO auth_key(ip_addr, user_token, client_token, token_expiry_date, client_identifier) values('%s', '%s', '%s', "
-                    + time + ", '%s')";
-            this.statement.execute(String.format(authKeyQuery, ipAddr, userToken, clientToken, clientIdentifier));
+            stmt.setString(1, userToken);
+            stmt.setInt(2, user.get().getLoggedInCount());
+            stmt.setString(3, user.get().getEmail());
+            stmt.execute();
+            stmt = this.connection.prepareStatement(
+                    "INSERT INTO auth_key(ip_addr, user_token, client_token, token_expiry_date, client_identifier) values(?,?,?,"
+                            + time + ",?)");
+            stmt.setString(1, ipAddr);
+            stmt.setString(2, userToken);
+            stmt.setString(3, clientToken);
+            stmt.setString(4, clientIdentifier);
+            stmt.execute();
             this.statement.execute("COMMIT");
         } catch (SQLException e) {
             System.err.println(e);
@@ -132,19 +151,24 @@ public class Storage {
         try {
             Optional<User> user = this.getUserWithEmail(email);
             this.statement.execute("BEGIN TRANSACTION");
-            String removeAuthKey = "DELETE FROM auth_key WHERE ip_addr = '%s' AND user_token = '%s' AND client_identifier = '%s'";
-            this.statement.execute(String.format(removeAuthKey, ipAddr, user.get().getAuthToken(), clientIdentifier));
+            PreparedStatement stmt = this.connection.prepareStatement(
+                    "DELETE FROM auth_key WHERE ip_addr = ? AND user_token = ? AND client_identifier = ?");
+            stmt.setString(1, ipAddr);
+            stmt.setString(2, user.get().getAuthToken());
+            stmt.setString(3, clientIdentifier);
+            stmt.execute();
             user.get().decrementLoggedInCount();
-            String updateUser;
             if (user.get().getLoggedInCount() == 0) {
                 System.out.println("Complete log out");
-                updateUser = "UPDATE user SET auth_token = '', logged_in_count = 0 WHERE email = '%s'";
+                stmt = this.connection
+                        .prepareStatement("UPDATE user SET auth_token = '', logged_in_count = 0 WHERE email = ?");
             } else {
                 System.out.println("Partial log out");
-                updateUser = "UPDATE user SET logged_in_count = " + user.get().getLoggedInCount()
-                        + " WHERE email = '%s'";
+                stmt = this.connection.prepareStatement(
+                        "UPDATE user SET logged_in_count = " + user.get().getLoggedInCount() + " WHERE email = ?");
             }
-            this.statement.execute(String.format(updateUser, email));
+            stmt.setString(1, email);
+            stmt.execute();
             this.statement.execute("COMMIT");
             return true;
 
@@ -193,8 +217,11 @@ public class Storage {
         try {
             String[] tokens = authToken.split(Pattern.quote("+"));
             AuthKey ak = null;
-            String getAuthKeyQuery = "SELECT * FROM auth_key WHERE user_token = '%s' AND client_token = '%s'";
-            ResultSet authKeyRs = this.statement.executeQuery(String.format(getAuthKeyQuery, tokens[0], tokens[1]));
+            PreparedStatement stmt = this.connection
+                    .prepareStatement("SELECT * FROM auth_key WHERE user_token = ? AND client_token = ?");
+            stmt.setString(1, tokens[0]);
+            stmt.setString(2, tokens[1]);
+            ResultSet authKeyRs = stmt.executeQuery();
             while (authKeyRs.next()) {
                 ak = new AuthKey(authKeyRs.getInt("id"), authKeyRs.getString("ip_addr"),
                         authKeyRs.getString("user_token"),
@@ -204,8 +231,9 @@ public class Storage {
             if (ak == null) {
                 return Optional.empty();
             }
-            String getUserQuery = "SELECT * FROM user WHERE auth_token = '%s'";
-            ResultSet userRs = this.statement.executeQuery(String.format(getUserQuery, tokens[0]));
+            stmt = this.connection.prepareStatement("SELECT * FROM user WHERE auth_token = ?");
+            stmt.setString(1, tokens[0]);
+            ResultSet userRs = stmt.executeQuery();
             while (userRs.next()) {
                 User user = new User(userRs.getString("email"), userRs.getString("password"), userRs.getString("name"),
                         userRs.getString("surname"), userRs.getInt("id"), userRs.getString("auth_token"),
