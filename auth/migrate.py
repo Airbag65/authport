@@ -30,6 +30,13 @@ def migrate():
         "client_identifier" TEXT NOT NULL
     );
     """
+    email_table = """CREATE TABLE email_user (
+        "id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
+        "adress" TEXT NOT NULL,
+        "account" integet NOT NULL,
+        FOREIGN KEY("account") REFERENCES user(id)
+    );
+    """
 
     cur = conn.cursor()
     cur.execute(drop_user)

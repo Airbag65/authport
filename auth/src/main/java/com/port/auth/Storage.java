@@ -245,4 +245,39 @@ public class Storage {
         }
         return Optional.empty();
     }
+
+    public Optional<User> getUserSMTP(String emailAdress) {
+        try {
+            PreparedStatement stmt = this.connection.prepareStatement(
+                    "SELECT * FROM email_user AS eu INNER JOIN user AS u ON eu.account = u.id WHERE eu.adress = ?");
+            stmt.setString(1, emailAdress);
+            ResultSet rs = stmt.executeQuery();
+            User user;
+            while (rs.next()) {
+                user = new User(rs.getString("u.email"), rs.getString("u.password"), rs.getString("u.name"),
+                        rs.getString("u.surname"), rs.getInt("u.id"), rs.getString("u.auth_token"),
+                        rs.getInt("u.logged_in_count"));
+                return Optional.of(user);
+            }
+        } catch (SQLException e) {
+            System.err.println(e);
+            return Optional.empty();
+        }
+        return Optional.empty();
+    }
+
+    public boolean emailAddressExists(String address) {
+        try {
+            PreparedStatement stmt = this.connection.prepareStatement("SELECT adress FROM email_user WHERE adress = ?");
+            stmt.setString(1, address);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                return true;
+            }
+        } catch (SQLException e) {
+            System.err.println(e);
+            return false;
+        }
+        return false;        
+    }
 }

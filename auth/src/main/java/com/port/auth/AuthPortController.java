@@ -1,5 +1,8 @@
 package com.port.auth;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Pattern;
 
@@ -9,6 +12,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.port.auth.Storage.LoginResult;
@@ -17,6 +21,7 @@ import com.port.auth.types.LoginRes;
 import com.port.auth.types.NewUserReq;
 import com.port.auth.types.NewUserRes;
 import com.port.auth.types.SignOutReq;
+import com.port.auth.types.SmtpLoginReq;
 import com.port.auth.types.User;
 import com.port.auth.types.ValidateReq;
 import com.port.auth.types.ValidateRes;
@@ -139,5 +144,25 @@ public class AuthPortController {
             return ResponseEntity.status(401).body("Unauthorized");
         }
         return ResponseEntity.ok().body(user.get().toJsonString());
+    }
+
+    @PostMapping("/mail/validate")
+    public ResponseEntity<?> validateSMTP(@RequestHeader("Content-Type") String contentType, @RequestBody SmtpLoginReq req) {
+        if (!contentType.equals("application/json")) {
+            return ResponseEntity.status(400).body("Bad request");
+        }
+        Optional<User> user = this.st.getUserSMTP(req.getEmail());
+        if (user.isEmpty() || !user.get().getPassword().equals(req.getPassword())) {
+            return ResponseEntity.status(401).body("Unauthorized");
+        }
+        return ResponseEntity.ok(Map.of("status", "ok"));
+    }
+
+    @GetMapping("/mail/address")
+    public ResponseEntity<?> getEmailAddresses(@RequestParam String address) {
+        if (this.st.emailAddressExists(address)) {
+            return ResponseEntity.ok(Map.of("status", "ok"));
+        }
+        return ResponseEntity.status(404).body(Map.of("status", "not found"));
     }
 }
