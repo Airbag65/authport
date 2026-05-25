@@ -254,9 +254,9 @@ public class Storage {
             ResultSet rs = stmt.executeQuery();
             User user;
             while (rs.next()) {
-                user = new User(rs.getString("u.email"), rs.getString("u.password"), rs.getString("u.name"),
-                        rs.getString("u.surname"), rs.getInt("u.id"), rs.getString("u.auth_token"),
-                        rs.getInt("u.logged_in_count"));
+                user = new User(rs.getString("email"), rs.getString("password"), rs.getString("name"),
+                        rs.getString("surname"), rs.getInt("id"), rs.getString("auth_token"),
+                        rs.getInt("logged_in_count"));
                 return Optional.of(user);
             }
         } catch (SQLException e) {
